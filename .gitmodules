@@ -1,0 +1,3 @@
+[submodule "src/starkit_msgs"]
+	path = src/starkit_msgs
+	url = https://saladwithgrass:y8FK25CB_mGR74jKmV4h@wavegit.mipt.ru/starkit/starkit_msgs.git
