@@ -18,10 +18,16 @@ setup(
         (os.path.join('share', package_name, 'config'), glob('config/*.json')),
 
     ],
-    install_requires=['setuptools'],
+    install_requires=[
+        'setuptools', 
+        'pin', 
+        'pin-pink', 
+        'qpsolvers[open_source_solvers]',
+        'meshcat_shapes'
+    ],
     zip_safe=True,
     maintainer='root',
-    maintainer_email='root@todo.todo',
+    maintainer_email='skorobogatov.ev@phystech.edu',
     description='TODO: Package description',
     license='TODO: License declaration',
     tests_require=['pytest'],
