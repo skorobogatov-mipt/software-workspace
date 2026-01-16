@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation
 import qpsolvers
 
 import meshcat_shapes
-from pink.visualization import start_meshcat_visualizer
+# from pink.visualization import start_meshcat_visualizer
 
 # TODO: make device selection better
 TORCH_DEVICE = 'cpu'
@@ -24,13 +24,16 @@ def point2list(p:Point):
 def quat2list_scalar_last(q:Quaternion):
     return [q.x, q.y, q.z, q.w]
 
+# FIXME make path a part of some config
+PATH_TO_PIPER = '/root/workspace/src/manip_controller/manip_controller/robot_descriptions/mjcf/agilex-piper/piper.xml'
+
 class IKNode(Node):
-    def __init__(self, path_to_mjcf='agilex-piper/piper.xml') -> None:
+    def __init__(self, path_to_mjcf=PATH_TO_PIPER) -> None:
         super().__init__('IKNode')
         self.robot_name = 'piper'
         self.path_to_mjcf = os.path.abspath(path_to_mjcf)
         self.__create_ik()
-        self.viz = start_meshcat_visualizer(self.robot_wrapper)
+        # self.viz = start_meshcat_visualizer(self.robot_wrapper)
 
         joint_control_topic = self.robot_name + "/DynamixelController_parallel/command"
         self.joint_control_publisher = self.create_publisher(
@@ -125,7 +128,7 @@ class IKNode(Node):
             return
         self.ik_configuration.integrate_inplace(velocity, dt)
         q = self.ik_configuration.q
-        self.viz.display(q)
+        # self.viz.display(q)
         # TODO make it prettier
         q = q[:-1] # remove gripper joint
         q = q.astype(float).tolist()
