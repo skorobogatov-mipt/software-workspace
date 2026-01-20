@@ -62,17 +62,25 @@ class Manip(Node):
             10
         )
 
-        self.wait_pose = Pose()
-        self.wait_pose.position.x = 0.55
-        self.wait_pose.position.y = 0.
-        self.wait_pose.position.z = 0.2
-        self.ik_pub.publish(self.wait_pose)
-
         self.gripper_pub = self.create_publisher(
             JointCommand,
             '/piper/DynamixelController_parallel/command',
             10
         )
+
+        self.get_logger().info('SUBSCRITPTIONS AND PUBLISHERS CREATED')
+        intermediate_pose = Pose()
+        intermediate_pose.position.x = 0.25
+        intermediate_pose.position.y = 0.
+        intermediate_pose.position.z = 0.5
+        self.ik_pub.publish(intermediate_pose)
+        time.sleep(0.5)
+
+        self.wait_pose = Pose()
+        self.wait_pose.position.x = 0.55
+        self.wait_pose.position.y = 0.
+        self.wait_pose.position.z = 0.3
+        self.return_to_wait()
 
     def return_to_wait(self):
         self.ik_pub.publish(self.wait_pose)
@@ -103,10 +111,10 @@ class Manip(Node):
         print('PICKING UP')
 
         # move to target item
-        result.position.x = float(position_2d[1] - MANIP_POS[1]) - 0.25
-        result.position.y = position_2d[0] + 0.002
-        result.position.z = 0.07
         self.open_gripper()
+        result.position.x = float(position_2d[1] - MANIP_POS[1]) - 0.2
+        result.position.y = position_2d[0] + 0.002
+        result.position.z = 0.02
         self.ik_pub.publish(result)
         time.sleep(0.5)
 
