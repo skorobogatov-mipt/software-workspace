@@ -155,7 +155,7 @@ class IKNode(Node):
         # time.sleep(0.001)
 
     def joint_state_cb(self, msg:JointState):
-        q = np.array(msg.position[0:7])
+        q = np.array(msg.position[0:8])
         self.ik_configuration.update(q)
 
 def main(args=None):
