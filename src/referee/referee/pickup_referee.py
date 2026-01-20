@@ -18,6 +18,7 @@ class PickupRefereeNode(Node):
         target_topics = self.get_target_topics()
         self.subs = {}
         for topic in target_topics:
+            self.get_logger().info('creating sub for:' + str(topic))
             self.subs[topic] = self.create_subscription(
                 msg_type=Odometry,
                 topic=topic,
