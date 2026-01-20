@@ -11,6 +11,7 @@ import pink
 from numpy.linalg import solve, norm
 from scipy.spatial.transform import Rotation
 import qpsolvers
+from sensor_msgs.msg import JointState
 
 import meshcat_shapes
 # from pink.visualization import start_meshcat_visualizer
@@ -47,6 +48,13 @@ class IKNode(Node):
             Pose,
             ik_target_topic,
             self.ik_target_cb,
+            10
+        )
+
+        self.state_sub = self.create_subscription(
+            JointState,
+            '/piper/joint_states_parallel',
+            self.joint_state_cb,
             10
         )
 
@@ -125,6 +133,7 @@ class IKNode(Node):
             )
         except pink.exceptions.NotWithinConfigurationLimits as e:
             print('err')
+            self.ik_configuration.update(pin.neutral(self.robot_model))
             return
         self.ik_configuration.integrate_inplace(velocity, dt)
         q = self.ik_configuration.q
@@ -144,6 +153,10 @@ class IKNode(Node):
         print('publishing')
         self.joint_control_publisher.publish(return_msg)
         # time.sleep(0.001)
+
+    def joint_state_cb(self, msg:JointState):
+        q = np.array(msg.position[0:7])
+        self.ik_configuration.update(q)
 
 def main(args=None):
     rclpy.init(args=args)
