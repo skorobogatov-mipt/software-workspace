@@ -1,4 +1,8 @@
 # Running the whole thing
+It uses this docker to run:\
+https://wavegit.mipt.ru/starkit.edu/robot_software_docker.git
+from branch: `wb_olymp`
+
 To run the whole thing, type:
 ```
 ros2 launch olympiad_env olympiad.launch.py
