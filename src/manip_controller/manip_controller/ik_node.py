@@ -1,23 +1,18 @@
 import numpy as np
-import time
 import rclpy
 from rclpy.node import Node
-from bitbots_msgs.msg import JointCommand, IntCommand
+from bitbots_msgs.msg import JointCommand
 from geometry_msgs.msg import Pose, Point, Quaternion
 from std_msgs.msg import Header
 import os
 import pinocchio as pin
 import pink
-from numpy.linalg import solve, norm
 from scipy.spatial.transform import Rotation
 import qpsolvers
 from sensor_msgs.msg import JointState
 
-import meshcat_shapes
+# import meshcat_shapes
 # from pink.visualization import start_meshcat_visualizer
-
-# TODO: make device selection better
-TORCH_DEVICE = 'cpu'
 
 def point2list(p:Point):
     return [p.x, p.y, p.z]
@@ -34,7 +29,12 @@ class IKNode(Node):
         self.robot_name = 'piper'
         self.path_to_mjcf = os.path.abspath(path_to_mjcf)
         self.__create_ik()
+
         # self.viz = start_meshcat_visualizer(self.robot_wrapper)
+        # self.viz.display(self.ik_configuration.q)
+        # self.viewer = self.viz.viewer
+        # meshcat_shapes.frame(self.viewer["end_effector_target"], opacity=0.5)
+        # meshcat_shapes.frame(self.viewer["end_effector"], opacity=1.0)
 
         joint_control_topic = self.robot_name + "/DynamixelController_parallel/command"
         self.joint_control_publisher = self.create_publisher(
@@ -58,7 +58,7 @@ class IKNode(Node):
             10
         )
 
-        print('####################### IK NODE READY ########################')
+        self.get_logger().info('####################### IK NODE READY ########################')
 
     def __load_model(self):
         self.robot_wrapper = pin.RobotWrapper.BuildFromMJCF(self.path_to_mjcf)
@@ -85,13 +85,13 @@ class IKNode(Node):
             q=q0
         )
         if not self.robot_model.existFrame(ee_name):
-            print(f'ERROR: model must have frame "{ee_name}"')
+            self.get_logger().error(f'ERROR: model must have frame "{ee_name}"')
             raise ValueError(f'model must have frame "{ee_name}", but it was not found in {self.path_to_mjcf}')
         
         self.ee_task = pink.FrameTask(
             frame=ee_name,
             position_cost=10.,
-            orientation_cost=1.
+            orientation_cost=5.
         )
         self.posture_task = pink.PostureTask(1e-3)
         self.tasks:list[pink.Task] = [self.ee_task, self.posture_task]
@@ -112,19 +112,28 @@ class IKNode(Node):
         ee_target.translation[0] = target_pos.x
         ee_target.translation[1] = target_pos.y
         ee_target.translation[2] = target_pos.z
-        
+        rot = Rotation([
+            target_quat.x,
+            target_quat.y,
+            target_quat.z,
+            target_quat.w
+        ])
+
+        ee_target.rotation = rot.as_matrix()
 
         # Update visualization frames
-        # viewer["end_effector_target"].set_transform(end_effector_target.np)
-        # viewer["end_effector"].set_transform(
-        #     configuration.get_transform_frame_to_world(
-        #         end_effector_task.frame
+        # self.viewer["end_effector_target"].set_transform(ee_target.np)
+        # self.viewer["end_effector"].set_transform(
+        #     self.ik_configuration.get_transform_frame_to_world(
+        #         self.ee_task.frame
         #     ).np
         # )
 
         # Compute velocity and integrate it into next configuration
-        dt = 0.005
+        dt = 0.001
         try:
+            # self.ik_configuration.update(pin.neutral(self.robot_model))
+            # self.viz.display(self.ik_configuration.q)
             velocity = pink.solve_ik(
                 self.ik_configuration, 
                 self.tasks, 
@@ -132,12 +141,13 @@ class IKNode(Node):
                 solver=self.solver
             )
         except pink.exceptions.NotWithinConfigurationLimits as e:
-            print('err')
+            self.get_logger().error('Target is not within joint limits')
             self.ik_configuration.update(pin.neutral(self.robot_model))
             return
         self.ik_configuration.integrate_inplace(velocity, dt)
         q = self.ik_configuration.q
         # self.viz.display(q)
+
         # TODO make it prettier
         q = q[:-1] # remove gripper joint
         q = q.astype(float).tolist()
@@ -147,10 +157,8 @@ class IKNode(Node):
                 stamp=self.get_clock().now().to_msg(),
             ),
         )
-        print(self.joint_names)
         return_msg.joint_names = self.joint_names
         return_msg.positions = q
-        print('publishing')
         self.joint_control_publisher.publish(return_msg)
         # time.sleep(0.001)
 
@@ -164,7 +172,7 @@ def main(args=None):
     try:
         rclpy.spin(ik_node)
     except KeyboardInterrupt as e:
-        print('Keyboard interrupt caught')
+        ik_node.get_logger().error('Keyboard interrupt caught')
     ik_node.destroy_node()
     rclpy.shutdown()
 
