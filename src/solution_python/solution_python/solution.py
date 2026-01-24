@@ -3,10 +3,12 @@ import rclpy
 import cv2
 import numpy as np
 from rclpy.node import Node
-from std_msgs.msg import Header
+from std_msgs.msg import Header, Bool
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Pose
 from bitbots_msgs.msg import JointCommand
+from scipy.spatial.transform import Rotation, rotation
+from copy import copy, deepcopy
 
 def image_msg_to_numpy(msg):
     if msg.encoding == 'rgb8' or msg.encoding == 'bgr8':
@@ -63,81 +65,111 @@ class Manip(Node):
         )
 
         self.gripper_pub = self.create_publisher(
-            JointCommand,
-            '/piper/DynamixelController_parallel/command',
+            Bool,
+            '/piper/gripper_state',
             10
         )
 
         self.get_logger().info('SUBSCRITPTIONS AND PUBLISHERS CREATED')
-        intermediate_pose = Pose()
-        intermediate_pose.position.x = 0.25
-        intermediate_pose.position.y = 0.
-        intermediate_pose.position.z = 0.5
-        self.ik_pub.publish(intermediate_pose)
+        self.create_poses()
+        half_pose = deepcopy(self.wait_pose)
+        half_pose.position.z += 0.2
+        self.ik_pub.publish(half_pose)
         time.sleep(0.5)
+        self.return_to_wait()
+        time.sleep(1)
+        # self.pickup([0, 0])
+    
+    def create_poses(self):
+        self.default_rot = Rotation.from_euler('zyx', [np.pi/2, 0, np.pi/2])
+        additional_rotation = Rotation.from_euler('zyx', [-np.pi/6, 0, 0])
+        self.home_rot = self.default_rot * additional_rotation
+        home_quat = self.home_rot.as_quat()
 
+        # idle pose
         self.wait_pose = Pose()
         self.wait_pose.position.x = 0.55
         self.wait_pose.position.y = 0.
         self.wait_pose.position.z = 0.3
-        self.return_to_wait()
+        self.wait_pose.orientation.x = copy(home_quat[0])
+        self.wait_pose.orientation.y = copy(home_quat[1])
+        self.wait_pose.orientation.z = copy(home_quat[2])
+        self.wait_pose.orientation.w = copy(home_quat[3])
+
+        # pose after dropping an objet
+        self.intermediate_pose = Pose()
+        self.intermediate_pose.position.x = 0.2
+        self.intermediate_pose.position.y = 0.2
+        self.intermediate_pose.position.z = 0.75
+
+        target_rotation = self.home_rot * Rotation.from_rotvec([np.pi/4, 0, 0])
+        quat = target_rotation.as_quat()
+        self.intermediate_pose.orientation.x = quat[0]
+        self.intermediate_pose.orientation.y = quat[1]
+        self.intermediate_pose.orientation.z = quat[2]
+        self.intermediate_pose.orientation.w = quat[3]
 
     def return_to_wait(self):
+        # self.get_logger().info('GOING TO WAIT')
         self.ik_pub.publish(self.wait_pose)
         self.open_gripper()
 
     def open_gripper(self):
-        msg = JointCommand(
-            header=Header(
-                stamp=self.get_clock().now().to_msg(),
-            ),
-        )
-        msg.joint_names = ['piper/gripper']
-        msg.positions = [0.035]
+        msg = Bool()
+        msg.data = True
         self.gripper_pub.publish(msg)
 
     def close_gripper(self):
-        msg = JointCommand(
-            header=Header(
-                stamp=self.get_clock().now().to_msg(),
-            ),
-        )
-        msg.joint_names = ['piper/gripper']
-        msg.positions = [0.]
+        msg = Bool()
+        msg.data = False
         self.gripper_pub.publish(msg)
 
     def pickup(self, position_2d):
         result = Pose()
-        print('PICKING UP')
+        # self.get_logger().info('PICKING UP')
 
         # move to target item
         self.open_gripper()
         result.position.x = float(position_2d[1] - MANIP_POS[1]) - 0.2
         result.position.y = position_2d[0] + 0.002
-        result.position.z = 0.02
+        result.position.z = 0.1
+        result.orientation = deepcopy(self.wait_pose.orientation)
         self.ik_pub.publish(result)
         time.sleep(0.5)
 
         # grab target item
+        result.position.z = 0.05
+        self.ik_pub.publish(result)
+        time.sleep(0.1)
         self.close_gripper()
         time.sleep(0.15)
 
         # raise the item
-        result.position.z += 0.2
+        result.position.z += 0.3
         self.ik_pub.publish(result)
-        time.sleep(1)
+        time.sleep(0.5)
+
+        self.ik_pub.publish(self.intermediate_pose)
+        time.sleep(0.5)
 
         # move to throw the item away
-        print('THROWING AWAY')
-        result.orientation.z = 1.
-        result.position.y = result.position.x
+        target_rotation = self.home_rot * Rotation.from_rotvec([np.pi/2, 0, 0])
+        huh = target_rotation.as_quat()
+        result.orientation.x = huh[0]
+        result.orientation.y = huh[1]
+        result.orientation.z = huh[2]
+        result.orientation.w = huh[3]
         result.position.x = 0.
-        result.position.z += 0.1
+        result.position.y = 0.7
         self.ik_pub.publish(result)
         time.sleep(1)
 
-        # drow item
+        # drop item
         self.open_gripper()
+        time.sleep(0.5)
+
+        # raise gripper a bit
+        self.ik_pub.publish(self.intermediate_pose)
         time.sleep(0.5)
 
         # move home
@@ -153,52 +185,28 @@ class Manip(Node):
             return
         centers = centers[centers[:, 0] < 0.05]
         centers = centers[centers[:, 0] > -0.05]
-        # for center in centers:
-        #     cv2.circle(
-        #             image, 
-        #             center=self.m_to_px(center),
-        #             radius=10, 
-        #             color=(0,0,255), 
-        #             thickness=-1
-        #     )
-            # print(center)
-        # cv2.imshow('huh', image)
-        # cv2.waitKey(1)
+        for center in centers:
+            cv2.circle(
+                    image, 
+                    center=self.m_to_px(center),
+                    radius=10, 
+                    color=(0,0,255), 
+                    thickness=-1
+            )
+        cv2.imshow('huh', image)
+        cv2.waitKey(1)
         if len(centers) != 1:
             self.return_to_wait()
             return
         center = centers[0]
         self.pickup(center)
-        # result = Pose()
-        # print('PICKING UP')
-        # result.position.x = float(center[1] - MANIP_POS[1]) - 0.25
-        # result.position.y = center[0] + 0.002
-        # result.position.z = 0.1
-        # self.open_gripper()
-        # self.ik_pub.publish(result)
-        # time.sleep(0.5)
-        # self.close_gripper()
-        # time.sleep(0.15)
-        # result.position.z += 0.2
-        # self.ik_pub.publish(result)
-        # time.sleep(1)
-        # result.position.y = result.position.x
-        # result.position.x = 0.
-        # result.position.z += 0.1
-        # self.ik_pub.publish(result)
-        # time.sleep(1)
-        # self.open_gripper()
-        # time.sleep(0.05)
-        # self.return_to_wait()
         
-
-
     def crop_image(self, image:np.ndarray):
         return image[CONV_TOP:CONV_BOT]
 
     def get_mask(self, image:np.ndarray):
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        SAT_THRESH = 25
+        SAT_THRESH = 15
         mask = (hsv[:, :, 1] > SAT_THRESH).astype(np.uint8) * 255
         return mask
 
