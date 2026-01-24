@@ -5,14 +5,17 @@ from rclpy.node import Node
 from nav_msgs.msg import Odometry
 from std_msgs.msg import String
 from functools import partial
-from .object_referee import ObjectReferee
+from .object_referee import ObjectReferee, DEFAULT_REGEXPS
 
 ZERO_LEVEL = 1.11
 ZERO_LEVEL_EPS = 0.001
 
 class PickupRefereeNode(ObjectReferee):
     def __init__(self):
-        super().__init__('pickup_referee')
+        super().__init__(
+                'pickup_referee',
+                taget_object_regexps=DEFAULT_REGEXPS
+        )
         self.report_pub = self.create_publisher(
             String,
             '/referee/pickup',

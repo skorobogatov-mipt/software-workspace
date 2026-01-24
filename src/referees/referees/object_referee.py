@@ -9,11 +9,10 @@ DEFAULT_REGEXPS = [
     "\/box_[a-z|A-Z]*_id[1-3]_rgb[0-9]{3}\/true_odom"
 ]
 
-
 class ObjectReferee(Node, ABC):
     def __init__(
             self, name:str,
-            taget_object_regexps:list[str]=DEFAULT_REGEXPS
+            taget_object_regexps:list[str]
             ):
         super().__init__(name)
         target_topics = self.get_target_topics(taget_object_regexps)

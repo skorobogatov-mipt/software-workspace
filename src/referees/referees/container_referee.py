@@ -4,7 +4,7 @@ from nav_msgs.msg import Odometry
 from std_msgs.msg import String
 import numpy as np
 
-from .object_referee import ObjectReferee
+from .object_referee import ObjectReferee, DEFAULT_REGEXPS
 
 CONTAINER_POS_3D = np.array([-0.6, -0.5, 0.25])
 
@@ -13,7 +13,10 @@ CONTAINER_DIMS = np.array([0.25, 0.25, 0.25])
 
 class ContainerReferee(ObjectReferee):
     def __init__(self):
-        super().__init__('box_referee')
+        super().__init__(
+                'box_referee',
+                taget_object_regexps=DEFAULT_REGEXPS
+        )
         self.report_pub = self.create_publisher(
             String,
             '/referee/container',
