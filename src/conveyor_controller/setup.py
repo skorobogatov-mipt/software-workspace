@@ -14,7 +14,7 @@ setup(
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='jazzhands',
-    maintainer_email='egod09080908@yandex.ru',
+    maintainer_email='skorobogatov.ev@phystech.edu',
     description='TODO: Package description',
     license='TODO: License declaration',
     tests_require=['pytest'],
