@@ -1,6 +1,6 @@
 [submodule "src/starkit_msgs"]
 	path = src/starkit_msgs
-	url = https://saladwithgrass:y8FK25CB_mGR74jKmV4h@wavegit.mipt.ru/starkit/starkit_msgs.git
+	url = https://wavegit.mipt.ru/starkit/starkit_msgs.git
 [submodule "src/manip_controller/manip_controller/robot_descriptions"]
 	path = src/manip_controller/manip_controller/robot_descriptions
-	url = https://saladwithgrass:y8FK25CB_mGR74jKmV4h@wavegit.mipt.ru/wb_olympiad/wb_olymp_mjcf.git
+	url = https://wavegit.mipt.ru/wb_olympiad/wb_olymp_mjcf.git
