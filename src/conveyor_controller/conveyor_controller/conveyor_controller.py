@@ -26,7 +26,7 @@ class ConveyorController(Node):
         for _ in range(10):
             self.speed_pub.publish(return_msg)
             time.sleep(0.01)
-        print('SPEED SET FOR: ', new_speed)
+        self.get_logger().info('SPEED SET FOR: ', new_speed)
 
 def main():
     rclpy.init()
