@@ -26,8 +26,8 @@ class PickupRefereeNode(ObjectReferee):
     
     def process_odom_cb(self, topic_name: str, msg: Odometry):
         below_zero_level = msg.pose.pose.position.z < ZERO_LEVEL + ZERO_LEVEL_EPS
-        if 'box' in topic_name and 'big' in topic_name:
-            self.get_logger().info(str(msg.pose.pose.position.z))
+        # if 'box' in topic_name and 'big' in topic_name:
+        #     self.get_logger().info(str(msg.pose.pose.position.z))
         if below_zero_level or not topic_name in self.subs.keys():
             return
         object_name = topic_name.removesuffix('/true_odom').removeprefix('/')
