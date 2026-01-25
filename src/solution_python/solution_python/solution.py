@@ -72,14 +72,10 @@ class Manip(Node):
 
         self.get_logger().info('SUBSCRITPTIONS AND PUBLISHERS CREATED')
         self.create_poses()
-        half_pose = deepcopy(self.wait_pose)
-        half_pose.position.z += 0.2
-        self.ik_pub.publish(half_pose)
-        time.sleep(0.5)
         self.return_to_wait()
         time.sleep(1)
-        # self.pickup([0, 0])
-    
+        self.pickup()
+        time.sleep(5)
     def create_poses(self):
         self.default_rot = Rotation.from_euler('zyx', [np.pi/2, 0, np.pi/2])
         additional_rotation = Rotation.from_euler('zyx', [-np.pi/6, 0, 0])
@@ -96,21 +92,7 @@ class Manip(Node):
         self.wait_pose.orientation.z = copy(home_quat[2])
         self.wait_pose.orientation.w = copy(home_quat[3])
 
-        # pose after dropping an objet
-        self.intermediate_pose = Pose()
-        self.intermediate_pose.position.x = 0.2
-        self.intermediate_pose.position.y = 0.2
-        self.intermediate_pose.position.z = 0.75
-
-        target_rotation = self.home_rot * Rotation.from_rotvec([np.pi/4, 0, 0])
-        quat = target_rotation.as_quat()
-        self.intermediate_pose.orientation.x = quat[0]
-        self.intermediate_pose.orientation.y = quat[1]
-        self.intermediate_pose.orientation.z = quat[2]
-        self.intermediate_pose.orientation.w = quat[3]
-
     def return_to_wait(self):
-        # self.get_logger().info('GOING TO WAIT')
         self.ik_pub.publish(self.wait_pose)
         self.open_gripper()
 
@@ -124,138 +106,25 @@ class Manip(Node):
         msg.data = False
         self.gripper_pub.publish(msg)
 
-    def pickup(self, position_2d):
+    def pickup(self):
         result = Pose()
         # self.get_logger().info('PICKING UP')
 
         # move to target item
         self.open_gripper()
-        result.position.x = float(position_2d[1] - MANIP_POS[1]) - 0.2
-        result.position.y = position_2d[0] + 0.002
+        result.position.x = 0.7
+        result.position.y = 0.2
         result.position.z = 0.1
         result.orientation = deepcopy(self.wait_pose.orientation)
         self.ik_pub.publish(result)
-        time.sleep(0.5)
-
-        # grab target item
-        result.position.z = 0.05
-        self.ik_pub.publish(result)
-        time.sleep(0.1)
-        self.close_gripper()
-        time.sleep(0.15)
-
-        # raise the item
-        result.position.z += 0.3
-        self.ik_pub.publish(result)
-        time.sleep(0.5)
-
-        self.ik_pub.publish(self.intermediate_pose)
-        time.sleep(0.5)
-
-        # move to throw the item away
-        target_rotation = self.home_rot * Rotation.from_rotvec([np.pi/2, 0, 0])
-        huh = target_rotation.as_quat()
-        result.orientation.x = huh[0]
-        result.orientation.y = huh[1]
-        result.orientation.z = huh[2]
-        result.orientation.w = huh[3]
-        result.position.x = 0.
-        result.position.y = 0.7
-        self.ik_pub.publish(result)
-        time.sleep(1)
-
-        # drop item
-        self.open_gripper()
-        time.sleep(0.5)
-
-        # raise gripper a bit
-        self.ik_pub.publish(self.intermediate_pose)
-        time.sleep(0.5)
+        time.sleep(2)
 
         # move home
         self.return_to_wait()
         time.sleep(0.1)
 
     def image_callback(self, msg:Image):
-        image = image_msg_to_numpy(msg)
-        image = self.crop_image(image)
-        centers = self.get_centers(image)
-        if centers is None:
-            self.return_to_wait()
-            return
-        centers = centers[centers[:, 0] < 0.05]
-        centers = centers[centers[:, 0] > -0.05]
-        for center in centers:
-            cv2.circle(
-                    image, 
-                    center=self.m_to_px(center),
-                    radius=10, 
-                    color=(0,0,255), 
-                    thickness=-1
-            )
-        cv2.imshow('huh', image)
-        cv2.waitKey(1)
-        if len(centers) != 1:
-            self.return_to_wait()
-            return
-        center = centers[0]
-        self.pickup(center)
-        
-    def crop_image(self, image:np.ndarray):
-        return image[CONV_TOP:CONV_BOT]
-
-    def get_mask(self, image:np.ndarray):
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        SAT_THRESH = 15
-        mask = (hsv[:, :, 1] > SAT_THRESH).astype(np.uint8) * 255
-        return mask
-
-    def find_large_cc_centers(
-            self,
-            mask:np.ndarray,
-            min_area:float=100.0,
-            connectivity: int=8
-        ) -> list[tuple[int, int]]:
-        if mask.ndim != 2:
-            raise ValueError("Mask must be a 2D array.")
-        
-        mask = mask.astype(np.uint8)
-        
-        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(
-            mask, connectivity=connectivity
-        )
-        centers = []
-        for label in range(1, num_labels):  # Skip background (label 0)
-            area = stats[label, cv2.CC_STAT_AREA]
-            if area > min_area:
-                cx, cy = centroids[label]
-                centers.append((int(cx), int(cy)))
-        
-        return centers
-
-    def px_to_m(self, point_px):
-        point_m = np.array(point_px, float)
-        point_m -= CONV_CENTER
-        point_m *= METERS_PER_PX
-        point_m *= -1
-        return point_m
-
-    def m_to_px(self, point_m):
-        point_px = np.array(point_m, float)
-        point_px *= -1
-        point_px /= METERS_PER_PX
-        point_px += CONV_CENTER
-        return point_px.astype(int)
-        
-    def get_centers(self, image:np.ndarray):
-        image = self.get_mask(image)
-        centers = self.find_large_cc_centers(mask=image)
-        if len(centers) == 0:
-            return None
-        centers = self.px_to_m(centers)
-        
-        return centers
-
+        pass
 
 def main():
     rclpy.init()
