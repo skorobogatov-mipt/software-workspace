@@ -23,10 +23,10 @@ class ConveyorController(Node):
         )
         return_msg.joint_names = ['conveyor/conveyor_motor']
         return_msg.positions = [self.speed]
-        for _ in range(1000):
+        self.get_logger().info(f'SPEED SET FOR: {new_speed}')
+        while True:
             self.speed_pub.publish(return_msg)
             time.sleep(0.01)
-        self.get_logger().info(f'SPEED SET FOR: {new_speed}')
 
 def main():
     rclpy.init()
